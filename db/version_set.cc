@@ -42,6 +42,7 @@
 #include "db/wide/wide_columns_helper.h"
 #include "file/file_util.h"
 #include "table/compaction_merging_iterator.h"
+#include "trace-zhao/logging_trace.h"
 
 #if USE_COROUTINES
 #include "folly/experimental/coro/BlockingWait.h"
@@ -2441,6 +2442,7 @@ void Version::Get(const ReadOptions& read_options, const LookupKey& k,
         GetPerfLevel() >= PerfLevel::kEnableTimeExceptForMutex &&
         get_perf_context()->per_level_perf_context_enabled;
     StopWatchNano timer(clock_, timer_enabled /* auto_start */);
+    //  search sstale -- zhao
     *status = table_cache_->Get(
         read_options, *internal_comparator(), *f->file_metadata, ikey,
         &get_context, mutable_cf_options_.block_protection_bytes_per_key,
@@ -2475,13 +2477,28 @@ void Version::Get(const ReadOptions& read_options, const LookupKey& k,
         // TODO: update per-level perfcontext user_key_return_count for kMerge
         break;
       case GetContext::kFound:
+        // get key from file  sstable -zhao 
         if (fp.GetHitFileLevel() == 0) {
           RecordTick(db_statistics_, GET_HIT_L0);
+          trace_zhao::get_log<< "0" << "\n";
         } else if (fp.GetHitFileLevel() == 1) {
           RecordTick(db_statistics_, GET_HIT_L1);
-        } else if (fp.GetHitFileLevel() >= 2) {
+          trace_zhao::get_log<< "1" << "\n";
+        } else if (fp.GetHitFileLevel() == 2) {
           RecordTick(db_statistics_, GET_HIT_L2_AND_UP);
+          trace_zhao::get_log<< "2" << "\n";
+        }else if (fp.GetHitFileLevel() == 3) {
+          RecordTick(db_statistics_, GET_HIT_L2_AND_UP);
+          trace_zhao::get_log<< "3" << "\n";
+        }else if (fp.GetHitFileLevel() == 4) {
+          RecordTick(db_statistics_, GET_HIT_L2_AND_UP);
+          trace_zhao::get_log<< "4" << "\n";
+        }else if (fp.GetHitFileLevel() >= 5) {
+          RecordTick(db_statistics_, GET_HIT_L2_AND_UP);
+          trace_zhao::get_log<< "5" << "\n";
         }
+
+        
 
         PERF_COUNTER_BY_LEVEL_ADD(user_key_return_count, 1,
                                   fp.GetHitFileLevel());

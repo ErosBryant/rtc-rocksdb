@@ -494,6 +494,8 @@ struct DBOptions {
   // Default: false
   bool error_if_exists = false;
 
+  bool uni=false;
+
   // If true, RocksDB will aggressively check consistency of the data.
   // Also, if any of the  writes to the database fails (Put, Delete, Merge,
   // Write), the database will switch to read-only mode and fail all other

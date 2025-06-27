@@ -91,6 +91,8 @@
 #include "utilities/merge_operators/bytesxor.h"
 #include "utilities/merge_operators/sortlist.h"
 #include "utilities/persistent_cache/block_cache_tier.h"
+#include "util/zipf.h"
+#include "util/latest-generator.h"
 
 #ifdef MEMKIND
 #include "memory/memkind_kmem_allocator.h"
@@ -347,9 +349,14 @@ DEFINE_int32(user_timestamp_size, 0,
 DEFINE_int32(num_multi_db, 0,
              "Number of DBs used in the benchmark. 0 means single DB.");
 
+DEFINE_int32(uniform, 0,
+             "Number of DBs used in the benchmark. 0 means single DB.");
+
 DEFINE_double(compression_ratio, 0.5,
               "Arrange to generate values that shrink to this fraction of "
               "their original size after compression");
+
+
 
 DEFINE_double(
     overwrite_probability, 0.0,
@@ -1761,6 +1768,8 @@ DEFINE_uint32(
 DEFINE_uint32(block_protection_bytes_per_key, 0,
               "Enable block per key-value checksum protection. "
               "Supported values: 0, 1, 2, 4, 8.");
+
+DEFINE_bool(uni, false, "Uniform key distribution for YCSB");
 
 DEFINE_bool(build_info, false,
             "Print the build info via GetRocksBuildInfoAsString");
@@ -3517,7 +3526,12 @@ class Benchmark {
       } else if (name == "fillrandom") {
         fresh_db = true;
         method = &Benchmark::WriteRandom;
-      } else if (name == "filluniquerandom" ||
+      } else if (name == "fillrandomzip") {
+        fresh_db = true;
+        method = &Benchmark::fillrandomzip;
+      }else if (name == "readrandomzip") {
+        method = &Benchmark::readrandomzip;
+      }else if (name == "filluniquerandom" ||
                  name == "fillanddeleteuniquerandom") {
         fresh_db = true;
         if (num_threads > 1) {
@@ -5856,6 +5870,124 @@ class Benchmark {
     thread->stats.AddBytes(bytes);
   }
 
+
+
+std::vector<long> zipf_keys;
+// - zhao
+void fillrandomzip(ThreadState* thread) {
+    ReadOptions options(FLAGS_verify_checksum, true);
+    RandomGenerator gen;
+    init_zipf_generator(0, FLAGS_num);
+    init_latestgen(FLAGS_num);
+    std::string value;
+    int64_t found = 0;
+
+    int64_t reads_done = 0;
+    int64_t writes_done = 0;
+    Duration duration(FLAGS_duration, FLAGS_num);
+
+    std::unique_ptr<const char[]> key_guard;
+    Slice key = AllocateKey(&key_guard);
+
+   zipf_keys.clear();
+  zipf_keys.reserve(FLAGS_num);
+
+    // the number of iterations is the larger of read_ or write_
+    while (!duration.Done(1)) {
+      DB* db = SelectDB(thread);
+       
+          long k;
+          if (FLAGS_uni){
+            //Generate number from uniform distribution            
+            k = thread->rand.Next() % FLAGS_num;
+          } else { //default
+            //Generate number from zipf distribution
+            k = nextValue() % FLAGS_num;            
+          }         
+          zipf_keys.push_back(k);
+          GenerateKeyFromInt(k, FLAGS_num, &key);
+
+          // int next_op = thread->rand.Next() % 100;
+          // if (next_op < 100){
+            // if (FLAGS_benchmark_write_rate_limit > 0) {
+              
+                
+            //     thread->shared->write_rate_limiter->Request(
+            //         value_size + key_size_, Env::IO_HIGH,
+            //         nullptr /* stats */, RateLimiter::OpType::kWrite);
+            //     thread->stats.ResetLastOpTime();
+            // }
+            // printf("Generated key: %ld\n", k);
+            
+            Status s = db->Put(write_options_, key, gen.Generate(value_size));
+            if (!s.ok()) {
+              //fprintf(stderr, "put error: %s\n", s.ToString().c_str());
+              //exit(1);
+            } else{
+             writes_done++;
+             thread->stats.FinishedOps(nullptr, db, 1, kWrite);
+            }                
+      // }
+
+
+
+    } 
+    char msg[100];
+    snprintf(msg, sizeof(msg), "( reads:%" PRIu64 " writes:%" PRIu64 \
+             " total:%" PRIu64 " found:%" PRIu64 ")",
+             reads_done, writes_done, readwrites_, found);
+    thread->stats.AddMessage(msg);
+  }
+
+
+  void readrandomzip(ThreadState* thread) {
+    ReadOptions options(FLAGS_verify_checksum, true);
+    RandomGenerator gen;
+    
+    init_zipf_generator(0, FLAGS_num);
+    // init_latestgen(FLAGS_num);
+    std::string value;
+    int64_t found = 0;
+    int64_t notfound = 0;
+    size_t idx = 0;
+
+    int64_t reads_done = 0;
+    Duration duration(FLAGS_duration, FLAGS_num);
+
+    std::unique_ptr<const char[]> key_guard;
+    Slice key = AllocateKey(&key_guard);
+
+
+  while (!duration.Done(1)) {
+    // std::cout << "readrandomzip" << std::endl;
+    DB* db = SelectDB(thread);
+    // long k = nextValue() % FLAGS_num;
+    long k = zipf_keys[idx++ % zipf_keys.size()];  // 같은 key 사용
+    GenerateKeyFromInt(k, FLAGS_num, &key);
+  // printf("Generated key: %ld\n", k);
+    Status s = db->Get(options, key, &value);
+
+    // Report the read as “finished,” every time:
+    thread->stats.FinishedOps(nullptr, db, 1, kRead);
+
+    reads_done++;
+    if (s.ok()) {
+      found++;
+    } else {
+      notfound++;
+    }
+  }
+    char msg[100];
+    snprintf(msg, sizeof(msg), "( reads:%" PRIu64 " notfound:%" PRIu64 \
+             " total:%" PRIu64 " found:%" PRIu64 ")",
+             reads_done, notfound, readwrites_, found);
+    thread->stats.AddMessage(msg);
+  }
+
+
+//  -zhao
+
+  
   void ReadToRowCache(ThreadState* thread) {
     int64_t read = 0;
     int64_t found = 0;

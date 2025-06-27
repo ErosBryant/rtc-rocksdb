@@ -2048,7 +2048,9 @@ class MemTableInserter : public WriteBatch::Handler {
     // any kind of transactions including the ones that use seq_per_batch
     assert(!seq_per_batch_ || !moptions->inplace_update_support);
     if (!moptions->inplace_update_support) {
-      ret_status =
+       // 函数里会检查memtable是否写满，如果写满了则将memtable的状态改为 FLUSH_REQUESTED -zhao
+      //  MemTable::ShouldFlushNow判断memtable大小是否超了(不只有这一种情况)。如果超过了，则将memtable的状态从 FLUSH_NOT_REQUESTED设置为 FLUSH_REQUESTED。
+          ret_status =
           mem->Add(sequence_, value_type, key, value, kv_prot_info,
                    concurrent_memtable_writes_, get_post_process_info(mem),
                    hint_per_batch_ ? &GetHintMap()[mem] : nullptr);

@@ -290,6 +290,7 @@ Status FlushJob::Run(LogsWithPrepTracker* prep_tracker, FileMetaData* file_meta,
     s = Status::OK();
   } else {
     // This will release and re-acquire the mutex.
+    //  level 0 -zhao。
     s = WriteLevel0Table();
   }
 

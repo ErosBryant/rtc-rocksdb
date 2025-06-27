@@ -2340,6 +2340,7 @@ Status DBImpl::GetImpl(const ReadOptions& read_options, const Slice& key,
         }
 
         RecordTick(stats_, MEMTABLE_HIT);
+         // get key from mem -zhao 
       } else if ((s.ok() || s.IsMergeInProgress()) &&
                  sv->imm->Get(lkey,
                               get_impl_options.value
@@ -2356,6 +2357,7 @@ Status DBImpl::GetImpl(const ReadOptions& read_options, const Slice& key,
         }
 
         RecordTick(stats_, MEMTABLE_HIT);
+        // get key from imm -zhao 
       }
     } else {
       // Get Merge Operands associated with key, Merge Operands should not be

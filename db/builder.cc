@@ -145,6 +145,8 @@ Status BuildTable(
       bool use_direct_writes = file_options.use_direct_writes;
       TEST_SYNC_POINT_CALLBACK("BuildTable:create_file", &use_direct_writes);
 #endif  // !NDEBUG
+    // Use direct writes if the file system supports it and the
+    // write sstable -zhao
       IOStatus io_s = NewWritableFile(fs, fname, &file, file_options);
       assert(s.ok());
       s = io_s;

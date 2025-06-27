@@ -261,6 +261,14 @@ Status DBImpl::FlushMemTableToOutputFile(
   // To address this, we make sure NotifyOnFlushBegin() executes after memtable
   // picking so that no new snapshot can be taken between the two functions.
 
+  //  -zhao
+//   生成 FlushJobflush任务
+// 调用 FlushJob::PickMemTable选择要flush的imm table
+// 调用 FlushJob::Run执行flush
+// 调用 DBImpl::InstallSuperVersionAndScheduleWork更新super version，触发、调度可能的compaction任务
+
+
+
   FlushJob flush_job(
       dbname_, cfd, immutable_db_options_, mutable_cf_options, max_memtable_id,
       file_options_for_compaction_, versions_.get(), &mutex_, &shutting_down_,
@@ -342,6 +350,7 @@ Status DBImpl::FlushMemTableToOutputFile(
   // and EventListener callback will be called when the db_mutex
   // is unlocked by the current thread.
   if (s.ok()) {
+    // // 运行flush任务 -zhao
     s = flush_job.Run(&logs_with_prep_tracker_, &file_meta,
                       &switched_to_mempurge, &skip_set_bg_error,
                       &error_handler_);
@@ -2806,6 +2815,7 @@ void DBImpl::EnableManualCompaction() {
   manual_compaction_paused_.fetch_sub(1, std::memory_order_release);
 }
 
+//  它并不只调度刚产生的flush任务，而是尽可能(只要不超过数量限制)调度所有flush和compaction任务，并且该函数在很多地方都被调用 -zhao
 void DBImpl::MaybeScheduleFlushOrCompaction() {
   mutex_.AssertHeld();
   TEST_SYNC_POINT("DBImpl::MaybeScheduleFlushOrCompaction:Start");
@@ -3151,6 +3161,7 @@ Status DBImpl::BackgroundFlush(bool* made_progress, JobContext* job_context,
   std::vector<SuperVersionContext>& superversion_contexts =
       job_context->superversion_contexts;
   autovector<ColumnFamilyData*> column_families_not_to_flush;
+  // // 从flush_queue_队列中取出请求 -zhao
   while (!flush_queue_.empty()) {
     // This cfd is already referenced
     FlushRequest flush_req = PopFirstFromFlushQueue();
@@ -3249,6 +3260,7 @@ Status DBImpl::BackgroundFlush(bool* made_progress, JobContext* job_context,
           bg_job_limits.max_compactions, bg_flush_scheduled_,
           bg_compaction_scheduled_);
     }
+    // 处理该FlushRequest -zhao
     status = FlushMemTablesToOutputFiles(bg_flush_args, made_progress,
                                          job_context, log_buffer, thread_pri);
     TEST_SYNC_POINT("DBImpl::BackgroundFlush:BeforeFlush");

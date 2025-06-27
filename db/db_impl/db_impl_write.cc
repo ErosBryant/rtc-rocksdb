@@ -314,6 +314,7 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
   }
 
   PERF_TIMER_GUARD(write_pre_and_post_process_time);
+  // 创建  writeer 对象 -zhao
   WriteThread::Writer w(write_options, my_batch, callback, log_ref,
                         disable_memtable, batch_cnt, pre_release_callback,
                         post_memtable_callback);
@@ -323,6 +324,7 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
   if (w.state == WriteThread::STATE_PARALLEL_MEMTABLE_WRITER) {
     // we are a non-leader in a parallel group
 
+    // 写入 memtable -zhao
     if (w.ShouldWriteToMemtable()) {
       PERF_TIMER_STOP(write_pre_and_post_process_time);
       PERF_TIMER_GUARD(write_memtable_time);
@@ -2395,6 +2397,7 @@ Status DB::Put(const WriteOptions& opt, ColumnFamilyHandle* column_family,
   return Write(opt, &batch);
 }
 
+// write -zhao
 Status DB::Put(const WriteOptions& opt, ColumnFamilyHandle* column_family,
                const Slice& key, const Slice& ts, const Slice& value) {
   ColumnFamilyHandle* default_cf = DefaultColumnFamily();

@@ -662,6 +662,9 @@ set(SOURCES
         db/db_filesnapshot.cc
         db/db_impl/compacted_db_impl.cc
         db/db_impl/db_impl.cc
+        trace-zhao/logging_trace.cc
+        util/zipf.cc 											
+        util/latest-generator.cc 									
         db/db_impl/db_impl_write.cc
         db/db_impl/db_impl_compaction_flush.cc
         db/db_impl/db_impl_files.cc
