@@ -145,8 +145,32 @@ enum Tickers : uint32_t {
   GET_HIT_L0,
   // # of Get() queries served by L1
   GET_HIT_L1,
+    // # of Get() queries served by L0
+  GET_HIT_L2,
+  // # of Get() queries served by L1
+  GET_HIT_L3,
+    // # of Get() queries served by L0
+  GET_HIT_L4,
+  // # of Get() queries served by L1
+  GET_HIT_L5,
   // # of Get() queries served by L2 and up
   GET_HIT_L2_AND_UP,
+
+// GET_MISS_L0,  // # of Get() queries not found in L0
+//  GET_MISS_L1,  // # of Get() queries not found in L1
+//  GET_MISS_L2,  // # of Get() queries not found in L2
+//  GET_MISS_L3,  // # of Get() queries not found in L3
+//  GET_MISS_L4,  // # of Get() queries not found in L4
+//  GET_MISS_L5,  // # of Get() queries not found in L5
+
+
+ GET_RMISS_L0,  // # of Get() queries not found in L0
+ GET_RMISS_L1,  // # of Get() queries not found in L1
+ GET_RMISS_L2,  // # of Get() queries not found in L2
+ GET_RMISS_L3,  // # of Get() queries not found in L3
+ GET_RMISS_L4,  // # of Get() queries not found in L4
+ GET_RMISS_L5,  // # of Get() queries not found in L5
+
 
   /**
    * COMPACTION_KEY_DROP_* count the reasons for key drop during compaction

@@ -249,6 +249,10 @@ class FilePicker {
   // getter for current file level
   // for GET_HIT_L0, GET_HIT_L1 & GET_HIT_L2_AND_UP counts
   unsigned int GetHitFileLevel() { return hit_file_level_; }
+  
+  unsigned int GetMissFileLevel() { return curr_level_; }
+
+    unsigned int RGetMissFileLevel() { return returned_file_level_; }
 
   // Returns true if the most recent "hit file" (i.e., one returned by
   // GetNextFile()) is at the last index in its level.
@@ -2442,7 +2446,7 @@ void Version::Get(const ReadOptions& read_options, const LookupKey& k,
         GetPerfLevel() >= PerfLevel::kEnableTimeExceptForMutex &&
         get_perf_context()->per_level_perf_context_enabled;
     StopWatchNano timer(clock_, timer_enabled /* auto_start */);
-    //  search sstale -- zhao
+    //  search sstale --zhao
     *status = table_cache_->Get(
         read_options, *internal_comparator(), *f->file_metadata, ikey,
         &get_context, mutable_cf_options_.block_protection_bytes_per_key,
@@ -2451,6 +2455,7 @@ void Version::Get(const ReadOptions& read_options, const LookupKey& k,
         IsFilterSkipped(static_cast<int>(fp.GetHitFileLevel()),
                         fp.IsHitFileLastInLevel()),
         fp.GetHitFileLevel(), max_file_size_for_l0_meta_pin_);
+        
     // TODO: examine the behavior for corrupted key
     if (timer_enabled) {
       PERF_COUNTER_BY_LEVEL_ADD(get_from_table_nanos, timer.ElapsedNanos(),
@@ -2472,6 +2477,45 @@ void Version::Get(const ReadOptions& read_options, const LookupKey& k,
     switch (get_context.State()) {
       case GetContext::kNotFound:
         // Keep searching in other files
+        // if (fp.GetMissFileLevel() == 0) {
+        //   RecordTick(db_statistics_, GET_MISS_L0);
+        //   trace_zhao::get_log<< "0";
+        // } else if (fp.GetMissFileLevel() == 1) {
+        //   RecordTick(db_statistics_, GET_MISS_L1);
+        //   trace_zhao::get_log<< "1";
+        // } else if (fp.GetMissFileLevel() == 2) {
+        //   RecordTick(db_statistics_, GET_MISS_L2);
+        //   trace_zhao::get_log<< "2";
+        // }else if (fp.GetMissFileLevel() == 3) {
+        //   RecordTick(db_statistics_, GET_MISS_L3);
+        //   trace_zhao::get_log<< "3";
+        // }else if (fp.GetMissFileLevel() == 4) {
+        //   RecordTick(db_statistics_, GET_MISS_L4);
+        //   trace_zhao::get_log<< "4";
+        // }else if (fp.GetMissFileLevel() >= 5) {
+        //   RecordTick(db_statistics_, GET_MISS_L5);
+        //   trace_zhao::get_log<< "5";
+        // }
+
+        if (fp.RGetMissFileLevel() == 0) {
+          RecordTick(db_statistics_, GET_RMISS_L0);
+          trace_zhao::get_log_miss<< "0";
+        } else if (fp.RGetMissFileLevel() == 1) {
+          RecordTick(db_statistics_, GET_RMISS_L1);
+          trace_zhao::get_log_miss<< "1";
+        } else if (fp.RGetMissFileLevel() == 2) {
+          RecordTick(db_statistics_, GET_RMISS_L2);
+          trace_zhao::get_log_miss<< "2";
+        }else if (fp.RGetMissFileLevel() == 3) {
+          RecordTick(db_statistics_, GET_RMISS_L3);
+          trace_zhao::get_log_miss<< "3";
+        }else if (fp.RGetMissFileLevel() == 4) {
+          RecordTick(db_statistics_, GET_RMISS_L4);
+          trace_zhao::get_log_miss<< "4";
+        }else if (fp.RGetMissFileLevel() >= 5) {
+          RecordTick(db_statistics_, GET_RMISS_L5);
+          trace_zhao::get_log_miss<< "5";
+        }
         break;
       case GetContext::kMerge:
         // TODO: update per-level perfcontext user_key_return_count for kMerge
@@ -2480,22 +2524,22 @@ void Version::Get(const ReadOptions& read_options, const LookupKey& k,
         // get key from file  sstable -zhao 
         if (fp.GetHitFileLevel() == 0) {
           RecordTick(db_statistics_, GET_HIT_L0);
-          trace_zhao::get_log<< "0" << "\n";
+          trace_zhao::get_log_hit<< "0";
         } else if (fp.GetHitFileLevel() == 1) {
           RecordTick(db_statistics_, GET_HIT_L1);
-          trace_zhao::get_log<< "1" << "\n";
+          trace_zhao::get_log_hit<< "1";
         } else if (fp.GetHitFileLevel() == 2) {
-          RecordTick(db_statistics_, GET_HIT_L2_AND_UP);
-          trace_zhao::get_log<< "2" << "\n";
+          RecordTick(db_statistics_, GET_HIT_L2);
+          trace_zhao::get_log_hit<< "2";
         }else if (fp.GetHitFileLevel() == 3) {
-          RecordTick(db_statistics_, GET_HIT_L2_AND_UP);
-          trace_zhao::get_log<< "3" << "\n";
+          RecordTick(db_statistics_, GET_HIT_L3);
+          trace_zhao::get_log_hit<< "3";
         }else if (fp.GetHitFileLevel() == 4) {
-          RecordTick(db_statistics_, GET_HIT_L2_AND_UP);
-          trace_zhao::get_log<< "4" << "\n";
+          RecordTick(db_statistics_, GET_HIT_L4);
+          trace_zhao::get_log_hit<< "4";
         }else if (fp.GetHitFileLevel() >= 5) {
-          RecordTick(db_statistics_, GET_HIT_L2_AND_UP);
-          trace_zhao::get_log<< "5" << "\n";
+          RecordTick(db_statistics_, GET_HIT_L5);
+          trace_zhao::get_log_hit<< "5";
         }
 
         

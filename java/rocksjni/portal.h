@@ -5965,6 +5965,14 @@ class HistogramTypeJni {
       case 0x3E:
         // 0x1F for backwards compatibility on current minor version.
         return ROCKSDB_NAMESPACE::Histograms::HISTOGRAM_ENUM_MAX;
+      case ROCKSDB_NAMESPACE::Tickers::GET_HIT_L2:
+        return 0x3F;
+      case ROCKSDB_NAMESPACE::Tickers::GET_HIT_L3:
+        return 0x3G;
+      case ROCKSDB_NAMESPACE::Tickers::GET_HIT_L4:
+        return 0x3H;
+      case ROCKSDB_NAMESPACE::Tickers::GET_HIT_L5:
+        return 0x3I;
 
       default:
         // undefined/default

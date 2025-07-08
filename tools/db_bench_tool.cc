@@ -1769,7 +1769,7 @@ DEFINE_uint32(block_protection_bytes_per_key, 0,
               "Enable block per key-value checksum protection. "
               "Supported values: 0, 1, 2, 4, 8.");
 
-DEFINE_bool(uni, false, "Uniform key distribution for YCSB");
+DEFINE_bool(uni, false, "Uniform key distribution for YCSB, fillrandomzip,readrandomzip -zhao");
 
 DEFINE_bool(build_info, false,
             "Print the build info via GetRocksBuildInfoAsString");
