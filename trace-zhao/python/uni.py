@@ -2,7 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # 파일에서 모든 level 읽기
-with open("/home/eros/forRTC/rocksdb/trace-zhao/result/150m_uni_miss.csv", "r") as f:
+# with open("/home/eros/forRTC/rocksdb/trace-zhao/result/150m_uni_bf_miss.csv", "r") as f:
+with open("/home/eros/forRTC/rocksdb/trace-zhao/result/150m_uni_bf_miss.csv", "r") as f:
 # with open("/home/sslab/zhao/rtc-rocksdb/trace-zhao/level_get_zip.csv", "r") as f:
     line = f.readline().strip()
     levels = [int(ch) for ch in line if ch in '01234']

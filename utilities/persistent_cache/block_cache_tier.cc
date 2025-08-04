@@ -264,6 +264,8 @@ Status BlockCacheTier::Lookup(const Slice& key, std::unique_ptr<char[]>* val,
                               size_t* size) {
   StopWatchNano timer(opt_.clock, /*auto_start=*/true);
 
+  // printf("BlockCacheTier::Lookup %s\n", key.ToString().c_str());
+  
   LBA lba;
   bool status;
   status = metadata_.Lookup(key, &lba);

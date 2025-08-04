@@ -36,6 +36,21 @@ void init_zipf_generator(long min, long max){
 	nextValue();
 }
 
+void skewed_generator(long min, long max, double theta_val){
+    items = max-min+1;
+    base = min;
+    zipfianconstant = theta_val;   // 使用用户设定的 theta
+    theta = zipfianconstant;
+    zeta2theta = zeta(0, 2, 0);
+    alpha = 1.0/(1.0-theta);
+    zetan = zetastatic(0, max-min+1, 0);
+    countforzeta = items;
+    eta=(1 - pow(2.0/items,1-theta) )/(1-zeta2theta/zetan);
+
+    nextValue();
+}
+
+
 
 double zeta(long st, long n, double initialsum) {
 	countforzeta=n;

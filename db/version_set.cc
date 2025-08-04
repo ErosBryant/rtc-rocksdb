@@ -42,7 +42,9 @@
 #include "db/wide/wide_columns_helper.h"
 #include "file/file_util.h"
 #include "table/compaction_merging_iterator.h"
+
 #include "trace-zhao/logging_trace.h"
+#include "trace-zhao/rtc.h"
 
 #if USE_COROUTINES
 #include "folly/experimental/coro/BlockingWait.h"
@@ -2467,7 +2469,8 @@ void Version::Get(const ReadOptions& read_options, const LookupKey& k,
       }
       return;
     }
-
+    //  --zhao
+    rtc::rtc_controller->RecordRead_latency(fp.GetHitFileLevel(), timer.ElapsedNanos() / 1000 /* us */);
     // report the counters before returning
     if (get_context.State() != GetContext::kNotFound &&
         get_context.State() != GetContext::kMerge &&
@@ -2499,22 +2502,34 @@ void Version::Get(const ReadOptions& read_options, const LookupKey& k,
 
         if (fp.RGetMissFileLevel() == 0) {
           RecordTick(db_statistics_, GET_RMISS_L0);
-          trace_zhao::get_log_miss<< "0";
+          // trace_zhao::get_log_miss<< "0";
+          rtc::lookups_counts[1].Increment(0, 1);
+          rtc::rtc_controller->RecordRead(0, 1);
         } else if (fp.RGetMissFileLevel() == 1) {
           RecordTick(db_statistics_, GET_RMISS_L1);
-          trace_zhao::get_log_miss<< "1";
+          // trace_zhao::get_log_miss<< "1";
+          rtc::lookups_counts[1].Increment(1, 1);
+          rtc::rtc_controller->RecordRead(1, 1);
         } else if (fp.RGetMissFileLevel() == 2) {
           RecordTick(db_statistics_, GET_RMISS_L2);
-          trace_zhao::get_log_miss<< "2";
+          // trace_zhao::get_log_miss<< "2";
+          rtc::lookups_counts[1].Increment(2, 1);
+          rtc::rtc_controller->RecordRead(2, 1);
         }else if (fp.RGetMissFileLevel() == 3) {
           RecordTick(db_statistics_, GET_RMISS_L3);
-          trace_zhao::get_log_miss<< "3";
+          // trace_zhao::get_log_miss<< "3";
+          rtc::lookups_counts[1].Increment(3, 1);
+          rtc::rtc_controller->RecordRead(3, 1);
         }else if (fp.RGetMissFileLevel() == 4) {
           RecordTick(db_statistics_, GET_RMISS_L4);
-          trace_zhao::get_log_miss<< "4";
+          // trace_zhao::get_log_miss<< "4";
+          rtc::lookups_counts[1].Increment(4, 1);
+          rtc::rtc_controller->RecordRead(4, 1);
         }else if (fp.RGetMissFileLevel() >= 5) {
           RecordTick(db_statistics_, GET_RMISS_L5);
-          trace_zhao::get_log_miss<< "5";
+          // trace_zhao::get_log_miss<< "5";
+          rtc::lookups_counts[1].Increment(5, 1);
+          rtc::rtc_controller->RecordRead(5, 1);
         }
         break;
       case GetContext::kMerge:
@@ -2524,22 +2539,34 @@ void Version::Get(const ReadOptions& read_options, const LookupKey& k,
         // get key from file  sstable -zhao 
         if (fp.GetHitFileLevel() == 0) {
           RecordTick(db_statistics_, GET_HIT_L0);
-          trace_zhao::get_log_hit<< "0";
+          // trace_zhao::get_log_hit<< "0";
+          rtc::lookups_counts[0].Increment(0, 1);
+          rtc::rtc_controller->RecordRead(0, 0);
         } else if (fp.GetHitFileLevel() == 1) {
           RecordTick(db_statistics_, GET_HIT_L1);
-          trace_zhao::get_log_hit<< "1";
+          // trace_zhao::get_log_hit<< "1";
+          rtc::lookups_counts[0].Increment(1, 1);
+          rtc::rtc_controller->RecordRead(1, 0);
         } else if (fp.GetHitFileLevel() == 2) {
           RecordTick(db_statistics_, GET_HIT_L2);
-          trace_zhao::get_log_hit<< "2";
+          // trace_zhao::get_log_hit<< "2";
+          rtc::lookups_counts[0].Increment(2, 1);
+          rtc::rtc_controller->RecordRead(2, 0);
         }else if (fp.GetHitFileLevel() == 3) {
           RecordTick(db_statistics_, GET_HIT_L3);
-          trace_zhao::get_log_hit<< "3";
+          // trace_zhao::get_log_hit<< "3";
+          rtc::lookups_counts[0].Increment(3, 1);
+          rtc::rtc_controller->RecordRead(3, 0);
         }else if (fp.GetHitFileLevel() == 4) {
           RecordTick(db_statistics_, GET_HIT_L4);
-          trace_zhao::get_log_hit<< "4";
+          // trace_zhao::get_log_hit<< "4";
+          rtc::lookups_counts[0].Increment(4, 1);
+          rtc::rtc_controller->RecordRead(4, 0);
         }else if (fp.GetHitFileLevel() >= 5) {
           RecordTick(db_statistics_, GET_HIT_L5);
-          trace_zhao::get_log_hit<< "5";
+          // trace_zhao::get_log_hit<< "5";
+          rtc::lookups_counts[0].Increment(5, 1);
+          rtc::rtc_controller->RecordRead(5, 0);
         }
 
         
@@ -5187,7 +5214,10 @@ VersionSet::VersionSet(
       offpeak_time_option_(OffpeakTimeOption(daily_offpeak_time_utc)),
       error_handler_(error_handler),
       read_only_(read_only),
-      closed_(false) {}
+      closed_(false) {
+
+
+      }
 
 Status VersionSet::Close(FSDirectory* db_dir, InstrumentedMutex* mu) {
   Status s;

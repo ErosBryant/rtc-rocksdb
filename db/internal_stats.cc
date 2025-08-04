@@ -30,6 +30,7 @@
 #include "table/block_based/cachable_entry.h"
 #include "util/hash_containers.h"
 #include "util/string_util.h"
+#include <iostream>
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -625,6 +626,7 @@ const UnorderedMap<std::string, DBPropertyInfo>
          {false, nullptr, &InternalStats::HandleBlobCachePinnedUsage, nullptr,
           nullptr}},
 };
+
 
 InternalStats::InternalStats(int num_levels, SystemClock* clock,
                              ColumnFamilyData* cfd)
@@ -2121,11 +2123,87 @@ void InternalStats::DumpCFFileHistogram(std::string* value) {
       << "] **\n";
 
   for (int level = 0; level < number_levels_; level++) {
-    if (!file_read_latency_[level].Empty()) {
+    // if (!file_read_latency_[level].Empty()) {
       oss << "** Level " << level << " read latency histogram (micros):\n"
           << file_read_latency_[level].ToString() << '\n';
-    }
+    // }
   }
+
+
+  // -zhao
+    // auto ticker = static_cast<rocksdb::Tickers>(rocksdb::Tickers::GET_HIT_L0);
+
+    // HistogramData hist;
+    // if (cfd_ && cfd_->ioptions()->statistics) {
+    //   cfd_->ioptions()->statistics->histogramData(ticker, &hist);
+
+    //   std::cout << "Level " << 0 << " GET latency (us): "
+    //             << "P50: " << hist.median
+    //             << ", P95: " << hist.percentile95
+    //             << ", P99: " << hist.percentile99
+    //             << ", max: " << hist.max << std::endl;
+    // }
+    // auto ticker1 = static_cast<rocksdb::Tickers>(rocksdb::Tickers::GET_HIT_L1);
+
+    // HistogramData hist1;
+    // if (cfd_ && cfd_->ioptions()->statistics) {
+    //   cfd_->ioptions()->statistics->histogramData(ticker1, &hist1);
+
+    //   std::cout << "Level " << 1 << " GET latency (us): "
+    //             << "P50: " << hist1.median
+    //             << ", P95: " << hist1.percentile95
+    //             << ", P99: " << hist1.percentile99
+    //             << ", max: " << hist1.max << std::endl;
+    // }
+    //     auto ticker2 = static_cast<rocksdb::Tickers>(rocksdb::Tickers::GET_HIT_L2);
+
+    // HistogramData hist2;
+    // if (cfd_ && cfd_->ioptions()->statistics) {
+    //   cfd_->ioptions()->statistics->histogramData(ticker2, &hist2);
+
+    //   std::cout << "Level " << 2 << " GET latency (us): "
+    //             << "P50: " << hist2.median
+    //             << ", P95: " << hist2.percentile95
+    //             << ", P99: " << hist2.percentile99
+    //             << ", max: " << hist2.max << std::endl;
+    // }
+    //     auto ticker3 = static_cast<rocksdb::Tickers>(rocksdb::Tickers::GET_HIT_L3);
+
+    // HistogramData hist3;
+    // if (cfd_ && cfd_->ioptions()->statistics) {
+    //   cfd_->ioptions()->statistics->histogramData(ticker3, &hist3);
+
+    //   std::cout << "Level " << 3 << " GET latency (us): "
+    //             << "P50: " << hist3.median
+    //             << ", P95: " << hist3.percentile95
+    //             << ", P99: " << hist3.percentile99
+    //             << ", max: " << hist3.max << std::endl;
+    // }
+    //     auto ticker4 = static_cast<rocksdb::Tickers>(rocksdb::Tickers::GET_HIT_L4);
+
+    // HistogramData hist4;
+    // if (cfd_ && cfd_->ioptions()->statistics) {
+    //   cfd_->ioptions()->statistics->histogramData(ticker4, &hist4);
+
+    //   std::cout << "Level " << 4 << " GET latency (us): "
+    //             << "P50: " << hist4.median
+    //             << ", P95: " << hist4.percentile95
+    //             << ", P99: " << hist4.percentile99
+    //             << ", max: " << hist4.max << std::endl;
+    // }
+    //     auto ticker5 = static_cast<rocksdb::Tickers>(rocksdb::Tickers::GET_HIT_L5);
+
+    // HistogramData hist5;
+    // if (cfd_ && cfd_->ioptions()->statistics) {
+    //   cfd_->ioptions()->statistics->histogramData(ticker5, &hist5);
+
+    //   std::cout << "Level " << 5 << " GET latency (us): "
+    //             << "P50: " << hist5.median
+    //             << ", P95: " << hist5.percentile95
+    //             << ", P99: " << hist5.percentile99
+    //             << ", max: " << hist5.max << std::endl;
+    // }
+
 
   if (!blob_file_read_latency_.Empty()) {
     oss << "** Blob file read latency histogram (micros):\n"

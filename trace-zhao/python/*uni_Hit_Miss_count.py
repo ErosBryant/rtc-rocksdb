@@ -6,8 +6,8 @@ levels = np.arange(5)
 plt.rcParams["font.family"] = "serif"
 
 # 두 번째 데이터셋 (LevelDB)
-baseline_negative2 = np.array([903972386, 22940008, 61829286, 61460144, 0])
-baseline_positive2 = np.array([636626 , 715122, 8931590, 71547631,69170031])
+baseline_negative2 = np.array([149991968, 39074968, 57200646, 49930143, 0])
+baseline_positive2 = np.array([101717 , 482518, 9189411, 72162516,68164838])
 
 # 119591064, 18087201, 18396681, 10350501, 0
 # 38739 , 167197, 398464, 13974456,25343614
@@ -15,10 +15,11 @@ baseline_positive2 = np.array([636626 , 715122, 8931590, 71547631,69170031])
 # 39922470
 plt.figure(figsize=(6,6))
 # 아래의 막대: Miss
-plt.bar(levels, baseline_negative2, width=0.5, label='Miss', edgecolor='black', color='#3f8efc')
-# 위에 쌓이는 막대: Hit
-plt.bar(levels, baseline_positive2, width=0.5, bottom=baseline_negative2,
+plt.bar(levels, baseline_positive2, width=0.5, 
         label='Hit', color='#fdc500', edgecolor='black')
+plt.bar(levels, baseline_negative2, width=0.5, bottom=baseline_positive2, label='Miss', edgecolor='black', color='#3f8efc')
+# 위에 쌓이는 막대: Hit
+
 # , hatch='//'
 
 plt.ylabel("Count", fontsize=26)

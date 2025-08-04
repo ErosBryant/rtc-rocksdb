@@ -108,6 +108,8 @@
 #include "util/udt_util.h"
 #include "utilities/trace/replayer_impl.h"
 
+#include "trace-zhao/rtc.h"
+
 namespace ROCKSDB_NAMESPACE {
 
 const std::string kDefaultColumnFamilyName("default");
@@ -295,6 +297,13 @@ DBImpl::DBImpl(const DBOptions& options, const std::string& dbname,
   if (write_buffer_manager_) {
     wbm_stall_.reset(new WBMStallInterface());
   }
+  // rtc::RTCController rtc_controller(7); 
+   rtc::rtc_controller = std::make_unique<rtc::RTCController>(7);
+  //  for (int i = 0; i < 7; ++i) {
+  //   // Initialize read_count and miss_count for each level
+  //   rtc::rtc_controller->reset(i);
+  //   }
+  rtc::lookups_counts.resize(2); 
 }
 
 Status DBImpl::Resume() {
@@ -2194,6 +2203,9 @@ Status DBImpl::GetImpl(const ReadOptions& read_options, const Slice& key,
 
   assert(get_impl_options.column_family);
 
+  // -zhao rtc
+  rtc::internal_lookup++;
+
   if (read_options.timestamp) {
     const Status s = FailIfTsMismatchCf(get_impl_options.column_family,
                                         *(read_options.timestamp));
@@ -2206,6 +2218,97 @@ Status DBImpl::GetImpl(const ReadOptions& read_options, const Slice& key,
       return s;
     }
   }
+
+
+
+  // -zhao all compact
+  // if (rtc::is_rtc){
+  //         std::thread allCompactionThread([this]() {
+  //         printf("test\n");
+  //         CompactRangeOptions compact_options;
+  //         compact_options.change_level = true;
+  //         compact_options.target_level = 5;
+  //         compact_options.exclusive_manual_compaction = false;
+  //         compact_options.bottommost_level_compaction =
+  //         BottommostLevelCompaction::kForceOptimized;
+  //         CompactRange(compact_options, nullptr, nullptr);
+  //         });
+  //         allCompactionThread.detach();
+  // rtc::is_rtc=false;
+  // }
+  // -------------------------
+
+  // -zhao per level rtc 
+
+
+  if (rtc::is_rtc){  
+    // printf("DBImpl::GetImpl: internal_lookup %ld, rtc %ld\n",
+    //        rtc::internal_lookup, rtc::rtc);
+    if (rtc::internal_lookup>=rtc::rtc) {
+      // printf("DBImpl::GetImpl: internal_lookup %ld, rtc %ld\n",
+      //        rtc::internal_lookup, rtc::rtc);
+      for (int level=0;level<=5;level++){
+        // printf("DBImpl::GetImpl: level %d, read_count %ld, Triggered_Count %ld\n",
+        //        level, rtc::rtc_controller->read_count[level],
+        //        rtc::rtc_controller->Triggered_Count);
+        if (rtc::rtc_controller->read_count[level] < rtc::rtc) continue;
+        auto action = rtc::rtc_controller->MaybeTrigger(level);
+        printf("DBImpl::GetImpl: level %d, action %d, read_count %ld, miss_count %ld, Triggered_Count %ld\n",
+               level, static_cast<int>(action),
+               rtc::rtc_controller->read_count[level],
+               rtc::rtc_controller->miss_count[level],
+               rtc::rtc_controller->Triggered_Count);
+        switch (action) {
+          case rtc::RTCAction::NoCompaction:{
+              break;
+          }
+          case rtc::RTCAction::LevelKCompaction:{
+              // TriggerCompaction(level);
+              // std::thread allCompactionThread([this]() {
+              std::thread allCompactionThread([this, level]() {
+                CompactRangeOptions compact_options;
+                compact_options.change_level = true;
+                // compact_options.target_level = level;
+                compact_options.exclusive_manual_compaction = false;
+                compact_options.bottommost_level_compaction =
+                BottommostLevelCompaction::kForceOptimized;
+                CompactRange(compact_options, nullptr, nullptr);
+              });
+              allCompactionThread.detach();
+              // rtc::rtc_controller->reset(level);
+              break;
+            }
+          case rtc::RTCAction::AggressiveCompaction:{
+              // TriggerAggressiveCompaction(level);
+              // printf("test\n");
+              std::thread allCompactionThread([this]() {
+                // printf("test111\n");
+                CompactRangeOptions compact_options;
+                compact_options.change_level = true;
+                compact_options.target_level = 3;
+                compact_options.exclusive_manual_compaction = false;
+                compact_options.bottommost_level_compaction =
+                BottommostLevelCompaction::kForceOptimized;
+                CompactRange(compact_options, nullptr, nullptr);
+              });
+              allCompactionThread.detach();
+              break;
+          }
+        }
+        double reward = (double)rtc::rtc_controller->miss_count[level] / 
+          (rtc::rtc_controller->read_count[level] + 1e-6);
+        printf("DBImpl::GetImpl: level %d, action %d, reward %f\n",
+               level, static_cast<int>(action), reward);
+          
+        rtc::rtc_controller->UpdateAfterAction(level, action, reward);
+      }
+      rtc::internal_lookup = 0;
+    }
+      
+   }
+
+
+
 
   // Clear the timestamps for returning results so that we can distinguish
   // between tombstone or key that has never been written
@@ -2387,6 +2490,7 @@ Status DBImpl::GetImpl(const ReadOptions& read_options, const Slice& key,
   PinnedIteratorsManager pinned_iters_mgr;
   if (!done) {
     PERF_TIMER_GUARD(get_from_output_files_time);
+    // get key from sst -zhao
     sv->current->Get(
         read_options, lkey, get_impl_options.value, get_impl_options.columns,
         timestamp, &s, &merge_context, &max_covering_tombstone_seq,
