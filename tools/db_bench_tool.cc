@@ -3549,6 +3549,7 @@ class Benchmark {
         method = &Benchmark::readrandomzip;
       }else if (name == "fillrandomgen") {
         fresh_db = false;
+        gen_keys.clear();
         method = &Benchmark::fillrandomgen;
       }else if (name == "readrandomgen") {
         method = &Benchmark::readrandomgen;
@@ -5908,10 +5909,11 @@ class Benchmark {
 // --zhao
 std::vector<long> gen_keys;
 void fillrandomgen(ThreadState* thread) {
+    FLAGS_entry_num+=FLAGS_num;
     ReadOptions options(FLAGS_verify_checksum, true);
     RandomGenerator gen;
-    init_zipf_generator(0, FLAGS_num);
-    init_latestgen(FLAGS_num);
+    init_zipf_generator(0, FLAGS_entry_num);
+    init_latestgen(FLAGS_entry_num);
     std::string value;
     int64_t found = 0;
 
@@ -5925,7 +5927,7 @@ void fillrandomgen(ThreadState* thread) {
   //  gen_keys.clear();
   //  gen_keys.reserve(FLAGS_num);
 
-    FLAGS_entry_num+=FLAGS_num;
+    
     gen_keys.reserve(FLAGS_entry_num);
     printf("entry_num: %ld\n", FLAGS_entry_num);
     // the number of iterations is the larger of read_ or write_
@@ -5967,15 +5969,15 @@ void fillrandomgen(ThreadState* thread) {
     ReadOptions options(FLAGS_verify_checksum, true);
     RandomGenerator gen;
     
-    init_zipf_generator(0, FLAGS_num);
+    init_zipf_generator(0, FLAGS_entry_num);
     // init_latestgen(FLAGS_num);
     std::string value;
     int64_t found = 0;
     int64_t notfound = 0;
-    size_t idx = 0;
+    // size_t idx = 0;
 
     int64_t reads_done = 0;
-    Duration duration(FLAGS_duration, FLAGS_entry_num);
+    Duration duration(FLAGS_duration, FLAGS_num);
 
     std::unique_ptr<const char[]> key_guard;
     Slice key = AllocateKey(&key_guard);
@@ -5985,7 +5987,9 @@ void fillrandomgen(ThreadState* thread) {
     // std::cout << "readrandomzip" << std::endl;
     DB* db = SelectDB(thread);
     // long k = nextValue() % FLAGS_num;
-    long k = gen_keys[idx++ % gen_keys.size()];  // 같은 key 사용
+    // long k = gen_keys[idx++ % gen_keys.size()];  // 같은 key 사용
+    long k = gen_keys[thread->rand.Next() % gen_keys.size()];
+    //  long k = 
     GenerateKeyFromInt(k, FLAGS_entry_num, &key);
   // printf("Generated key: %ld\n", k);
     Status s = db->Get(options, key, &value);
@@ -6086,7 +6090,7 @@ void fillrandomgen(ThreadState* thread) {
       DB* db = SelectDB(thread);
        
           long k;
-          if (FLAGS_YCSB_uniform_distribution){
+          if (FLAGS_uni){
             //Generate number from uniform distribution            
             k = thread->rand.Next() % FLAGS_num;
           } else { //default
@@ -6115,11 +6119,11 @@ void fillrandomgen(ThreadState* thread) {
             if (FLAGS_benchmark_write_rate_limit > 0) {
                 
                 thread->shared->write_rate_limiter->Request(
-                    value_size_ + key_size_, Env::IO_HIGH,
+                    value_size + key_size_, Env::IO_HIGH,
                     nullptr /* stats */, RateLimiter::OpType::kWrite);
                 thread->stats.ResetLastOpTime();
             }
-            Status s = db->Put(write_options_, key, gen.Generate(value_size_));
+            Status s = db->Put(write_options_, key, gen.Generate(value_size));
             if (!s.ok()) {
               //fprintf(stderr, "put error: %s\n", s.ToString().c_str());
               //exit(1);
@@ -6170,7 +6174,7 @@ void fillrandomgen(ThreadState* thread) {
       DB* db = SelectDB(thread);
 
       long k;
-      if (FLAGS_YCSB_uniform_distribution){
+      if (FLAGS_uni){
         //Generate number from uniform distribution            
         k = thread->rand.Next() % FLAGS_num;
       } else { //default
@@ -6196,7 +6200,7 @@ void fillrandomgen(ThreadState* thread) {
       } else{
         //write
         Status s = db->Get(options, key, &value);
-        s = db->Put(write_options_, key, gen.Generate(value_size_));
+        s = db->Put(write_options_, key, gen.Generate(value_size));
         if (!s.ok()) {
           //fprintf(stderr, "put error: %s\n", s.ToString().c_str());
           //exit(1);
@@ -6242,7 +6246,7 @@ void fillrandomgen(ThreadState* thread) {
       DB* db = SelectDB(thread);
 
       long k;
-      if (FLAGS_YCSB_uniform_distribution){
+      if (FLAGS_uni){
         //Generate number from uniform distribution            
         k = thread->rand.Next() % FLAGS_num;
       } else { //default
@@ -6310,7 +6314,7 @@ void fillrandomgen(ThreadState* thread) {
 
 
       long k;
-      if (FLAGS_YCSB_uniform_distribution){
+      if (FLAGS_uni){
         //Generate number from uniform distribution            
         k = thread->rand.Next() % FLAGS_num;
       } else { //default
@@ -6335,7 +6339,7 @@ void fillrandomgen(ThreadState* thread) {
         
       } else{
         //write
-        Status s = db->Put(write_options_, key, gen.Generate(value_size_));
+        Status s = db->Put(write_options_, key, gen.Generate(value_size));
         if (!s.ok()) {
           //fprintf(stderr, "put error: %s\n", s.ToString().c_str());
           //exit(1);
@@ -6395,7 +6399,7 @@ void fillrandomgen(ThreadState* thread) {
       DB* db = SelectDB(thread);
 
       long k;
-      if (FLAGS_YCSB_uniform_distribution){
+      if (FLAGS_uni){
         //Generate number from uniform distribution            
         k = thread->rand.Next() % FLAGS_num;
       } else { //default
@@ -6411,7 +6415,7 @@ void fillrandomgen(ThreadState* thread) {
         
         //TODO need to draw a random number for the scan length
         //for now, scan lenght constant
-        int scan_length = thread->rand.Next() % 100;
+        // int scan_length = thread->rand.Next() % 100;
 
         Iterator* iter = db->NewIterator(options);
         int64_t i = 0;
@@ -6429,7 +6433,7 @@ void fillrandomgen(ThreadState* thread) {
         thread->stats.FinishedOps(nullptr, db, 1, kRead);
       } else{
         //write
-        Status s = db->Put(write_options_, key, gen.Generate(value_size_));
+        Status s = db->Put(write_options_, key, gen.Generate(value_size));
         if (!s.ok()) {
           //fprintf(stderr, "put error: %s\n", s.ToString().c_str());
           //exit(1);
@@ -6482,7 +6486,7 @@ void fillrandomgen(ThreadState* thread) {
       DB* db = SelectDB(thread);
 
       long k;
-      if (FLAGS_YCSB_uniform_distribution){
+      if (FLAGS_uni){
         //Generate number from uniform distribution            
         k = thread->rand.Next() % FLAGS_num;
       } else { //default
@@ -6508,7 +6512,7 @@ void fillrandomgen(ThreadState* thread) {
       } else{
         //read-modify-write.
         Status s = db->Get(options, key, &value);
-        s = db->Put(write_options_, key, gen.Generate(value_size_));
+        s = db->Put(write_options_, key, gen.Generate(value_size));
         if (!s.ok()) {
           //fprintf(stderr, "put error: %s\n", s.ToString().c_str());
           //exit(1);

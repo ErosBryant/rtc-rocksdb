@@ -3,16 +3,18 @@
 bench_value="1000"
 bench_compression="snappy"
 bench_key="24"
-bench_benchmarks="fillrandomgen,readrandomgen,fillrandomgen,readrandomgen,fillrandomgen,readrandomgen,fillrandomgen,readrandomgen,fillrandomgen,readrandomgen,fillrandomgen,readrandomgen,fillrandomgen,readrandomgen,fillrandomgen,readrandomgen,fillrandomgen,readrandomgen,fillrandomgen,readrandomgen,stats"
+bench_benchmarks="fillrandomgen,readrandomgen,stats,fillrandomgen,readrandomgen,stats,fillrandomgen,readrandomgen,stats,fillrandomgen,readrandomgen,stats,fillrandomgen,readrandomgen,stats,fillrandomgen,readrandomgen,stats,fillrandomgen,readrandomgen,stats,fillrandomgen,readrandomgen,stats,fillrandomgen,readrandomgen,stats,fillrandomgen,readrandomgen,stats"
 # bench_benchmarks="fillrandomgen,readrandomgen,stats"
 bench_nums=(15000000)
 max_background_jobs="2"
 unis=(0 1)
 use_rtc=(0 1)
-number_of_runs=3
+number_of_runs=1
  
-bench_db_base="/home/eros/forRTC/db_path"
+bench_db_base="/mnt/new1/db_path"
 output_dir="/home/eros/forRTC/result/cpu/"
+log_file_dir="/home/eros/forRTC/result/0804/"
+mkdir -p "$log_file_dir"
 mkdir -p "$output_dir"
 
 current_time=$(date "+%Y%m%d-%H%M%S")
@@ -32,7 +34,7 @@ for num in "${bench_nums[@]}"; do
     for rtc in "${use_rtc[@]}"; do
       for round in $(seq 1 $number_of_runs); do
 
-        log_file="/home/eros/forRTC/result/out_${num}_uni${uni}_rtc${rtc}_round${round}.log"
+        log_file=${log_file_dir}out_${num}_uni${uni}_rtc${rtc}_round${round}.log
         db_dir="${bench_db_base}_${num}_uni${uni}_rtc${rtc}_round${round}"
         mkdir -p "$db_dir"
 
@@ -54,7 +56,7 @@ for num in "${bench_nums[@]}"; do
         start_time=$(date +%s)
 
         if [ -n "$1" ]; then
-            cmd="nohup stdbuf -oL $bench_file_path $const_params >> $log_file 2>&1 & echo \$!"
+            cmd="stdbuf -oL $bench_file_path $const_params >> $log_file 2>&1 & echo \$!"
             db_bench_pid=$(eval "$cmd")
         else
             cmd="stdbuf -oL $bench_file_path $const_params"

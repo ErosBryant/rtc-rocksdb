@@ -14,6 +14,9 @@
 #include <random>
 #include <memory>
 
+#include "db/internal_stats.h"
+#include "db/column_family.h"
+#include "rocksdb/db.h"
 
 namespace rtc{
 
@@ -97,14 +100,15 @@ public:
     void RecordRead(int level, bool miss);
     void RecordRead_latency(int level, size_t latency);
     void reset(int level);
-    RTCAction MaybeTrigger(int level);
-    void UpdateAfterAction(int level, RTCAction action, double reward);
+    RTCAction MaybeTrigger(int level,double waf);
+    void UpdateAfterAction(int level, RTCAction action, double waf);
 
-// private:
     QLearningAgent agent;
     std::vector<size_t> read_count;
     std::vector<size_t> miss_count;
     std::vector<size_t> level_latency;
+    std::vector<double> threshold, prev_ratio, prev_waf;
+    std::vector<double>  max_delta_ratio, max_diff_waf;
 
     const size_t Triggered_Count = 200000;
 };

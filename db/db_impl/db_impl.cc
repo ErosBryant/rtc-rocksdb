@@ -109,6 +109,8 @@
 #include "utilities/trace/replayer_impl.h"
 
 #include "trace-zhao/rtc.h"
+#include "db/internal_stats.h"
+
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -2195,6 +2197,27 @@ bool DBImpl::ShouldReferenceSuperVersion(const MergeContext& merge_context) {
              merge_context.GetOperands().size();
 }
 
+
+double DBImpl::GetWriteAmpForLevel(int level) {
+  std::map<std::string, std::string> prop;
+  // 获取所有的 compaction 统计
+  if (!GetMapProperty("rocksdb.cfstats", &prop)) {
+    return -1.0;  // 获取失败
+  }
+  // 从 mapping 里拿到 WRITE_AMP 对应的 property_name
+  auto stat =
+      InternalStats::compaction_level_stats.at(LevelStatType::WRITE_AMP);
+  // 构造 key：compaction.L{level}.{property_name}
+  std::string key = "compaction.L" + std::to_string(level) + "." +
+                    stat.property_name;
+  auto it = prop.find(key);
+  if (it == prop.end()) {
+    return 0.0;
+  }
+  return std::stod(it->second);
+}
+
+
 Status DBImpl::GetImpl(const ReadOptions& read_options, const Slice& key,
                        GetImplOptions& get_impl_options) {
   assert(get_impl_options.value != nullptr ||
@@ -2218,6 +2241,7 @@ Status DBImpl::GetImpl(const ReadOptions& read_options, const Slice& key,
       return s;
     }
   }
+
 
 
 
@@ -2248,16 +2272,17 @@ Status DBImpl::GetImpl(const ReadOptions& read_options, const Slice& key,
       // printf("DBImpl::GetImpl: internal_lookup %ld, rtc %ld\n",
       //        rtc::internal_lookup, rtc::rtc);
       for (int level=0;level<=5;level++){
-        // printf("DBImpl::GetImpl: level %d, read_count %ld, Triggered_Count %ld\n",
-        //        level, rtc::rtc_controller->read_count[level],
-        //        rtc::rtc_controller->Triggered_Count);
+
+      double amp = GetWriteAmpForLevel(level);
+ 
+
         if (rtc::rtc_controller->read_count[level] < rtc::rtc) continue;
-        auto action = rtc::rtc_controller->MaybeTrigger(level);
-        printf("DBImpl::GetImpl: level %d, action %d, read_count %ld, miss_count %ld, Triggered_Count %ld\n",
-               level, static_cast<int>(action),
-               rtc::rtc_controller->read_count[level],
-               rtc::rtc_controller->miss_count[level],
-               rtc::rtc_controller->Triggered_Count);
+        auto action = rtc::rtc_controller->MaybeTrigger(level, amp);
+        // printf("DBImpl::GetImpl: level %d, action %d, read_count %ld, miss_count %ld, Triggered_Count %ld\n",
+        //        level, static_cast<int>(action),
+        //        rtc::rtc_controller->read_count[level],
+        //        rtc::rtc_controller->miss_count[level],
+        //        rtc::rtc_controller->Triggered_Count);
         switch (action) {
           case rtc::RTCAction::NoCompaction:{
               break;
@@ -2295,12 +2320,12 @@ Status DBImpl::GetImpl(const ReadOptions& read_options, const Slice& key,
               break;
           }
         }
-        double reward = (double)rtc::rtc_controller->miss_count[level] / 
-          (rtc::rtc_controller->read_count[level] + 1e-6);
-        printf("DBImpl::GetImpl: level %d, action %d, reward %f\n",
-               level, static_cast<int>(action), reward);
+
+        // double reward = (double)rtc::rtc_controller->miss_count[level] / (rtc::rtc_controller->read_count[level] + 1e-6);
+
+
           
-        rtc::rtc_controller->UpdateAfterAction(level, action, reward);
+      rtc::rtc_controller->UpdateAfterAction(level, action, amp);
       }
       rtc::internal_lookup = 0;
     }

@@ -6,8 +6,26 @@ levels = np.arange(5)
 plt.rcParams["font.family"] = "serif"
 
 # 두 번째 데이터셋 (LevelDB)
-baseline_negative2 = np.array([149991968, 39074968, 57200646, 49930143, 0])
-baseline_positive2 = np.array([101717 , 482518, 9189411, 72162516,68164838])
+baseline_negative2 = np.array([2315500
+
+,  1968999
+
+, 9707437
+
+,       0
+,        0])
+
+baseline_positive2 = np.array([ 881
+
+,   40399
+
+, 1962289
+
+, 85294148
+
+,  62702268
+
+])
 
 # 119591064, 18087201, 18396681, 10350501, 0
 # 38739 , 167197, 398464, 13974456,25343614
@@ -15,8 +33,7 @@ baseline_positive2 = np.array([101717 , 482518, 9189411, 72162516,68164838])
 # 39922470
 plt.figure(figsize=(6,6))
 # 아래의 막대: Miss
-plt.bar(levels, baseline_positive2, width=0.5, 
-        label='Hit', color='#fdc500', edgecolor='black')
+plt.bar(levels, baseline_positive2, width=0.5,         label='Hit', color='#fdc500', edgecolor='black')
 plt.bar(levels, baseline_negative2, width=0.5, bottom=baseline_positive2, label='Miss', edgecolor='black', color='#3f8efc')
 # 위에 쌓이는 막대: Hit
 
@@ -32,7 +49,7 @@ ax.yaxis.get_offset_text().set_fontsize(26)
 plt.xticks(levels, [f"L{i}" for i in levels], fontsize=24)
 plt.yticks(fontsize=24)
 plt.legend(fontsize=22)
-# plt.ylim(0, baseline_negative2.max() * 1.1)
+plt.ylim(0, baseline_positive2.max() * 1.1)
 plt.grid(axis='y', linestyle='--', color='gray')
 
 

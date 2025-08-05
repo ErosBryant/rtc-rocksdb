@@ -4,8 +4,13 @@
 #include <tuple>
 #include <iostream>
 #include <memory>
+#include "db/internal_stats.h"
+#include "db/column_family.h"
 
 namespace rtc{
+
+
+
 
     // std::vector<Counter> negative_lookups;
     std::vector<Counter> lookups_counts;
@@ -50,7 +55,7 @@ std::vector<double>& QTable::GetQValues(const RTCState& state) {
         // table[state] = std::vector<double>(ACTION_SIZE, 0.0);
          table[state] = std::vector<double>{0.0,0.5,0.1};  // encourage compaction actions early
     }
-    printf("QTable::GetQValues: state (%d, %d), Q values: ", state.level, state.ratio_bucket);
+    // printf("QTable::GetQValues: state (%d, %d), Q values: ", state.level, state.ratio_bucket);
     for (const auto& q : table[state]) {
         printf("%f ", q);
     }
@@ -99,10 +104,7 @@ RTCAction QLearningAgent::ChooseAction(const RTCState& state) {
 
 // 根据经验三元组 (s, a, r, s') 来更新 Q 表
 void QLearningAgent::UpdateQ(const RTCState& state, RTCAction action, double reward, const RTCState& next_state) {
-    double q_old = q_table.GetQ(state, action);  // 旧 Q 值
-    // printf("QLearningAgent::UpdateQ: state (%d, %d), action %d, old Q value %f, reward %f\n",
-        //    state.level, state.ratio_bucket, static_cast<int>(action), q_old, reward);
-
+    double q_old = q_table.GetQ(state, action);  
            
     auto& next_qs = q_table.GetQValues(next_state);  // 下一个状态所有动作的 Q 值
     double max_q_next = *std::max_element(next_qs.begin(), next_qs.end());
@@ -117,7 +119,15 @@ void QLearningAgent::UpdateQ(const RTCState& state, RTCAction action, double rew
 // RTCController
 // 初始化：构造函数，设置每层的 read_count / miss_count 为 0
 RTCController::RTCController(int num_levels)
-    : read_count(num_levels, 0), miss_count(num_levels, 0), level_latency(num_levels, 0) {}
+    : read_count(num_levels, 0), 
+    miss_count(num_levels, 0), 
+    level_latency(num_levels, 0),
+    threshold(num_levels, 0.5), 
+    prev_ratio(num_levels, 0.0),
+    prev_waf(num_levels, 0.0),
+    // diff_waf(num_levels, 0.0),
+    max_delta_ratio(num_levels, 1e-6),  // 避免除 0
+    max_diff_waf(num_levels, 1e-6) { }
 
 
 // 每次读操作时调用，根据 miss 情况记录行为
@@ -138,12 +148,12 @@ void RTCController::reset(int level) {
 
 
 // 当某一层的读操作足够多后，决定是否执行 compaction
-RTCAction RTCController::MaybeTrigger(int level) {
-    // if (read_count[level] < Triggered_Count)
-    //     return RTCAction::NoCompaction;  // 还没到触发阈值，跳过
+RTCAction RTCController::MaybeTrigger(int level,double waf) {
 
     double ratio = (double)miss_count[level] / (read_count[level] + 1e-6);  // 当前 miss 比率
-    if (ratio >= 0.5){
+    if (ratio >= threshold[level]){
+    prev_ratio[level] = ratio;
+    prev_waf[level] = waf;
     RTCState state{level, RTCState::Discretize(ratio)};  // 构造状态对象
     return agent.ChooseAction(state);  // 用 RL agent 决策
     }
@@ -151,23 +161,61 @@ RTCAction RTCController::MaybeTrigger(int level) {
     return RTCAction::NoCompaction;  // 还没到触发阈值，跳过
 }
 
-// compaction 执行完成后，反馈 reward，更新 RL agent
-void RTCController::UpdateAfterAction(int level, RTCAction action, double reward) {
+void RTCController::UpdateAfterAction(int level,
+                                      RTCAction action,
+                                      double waf) {
+  // 1) 触发后新 ratio & waf
+  double new_ratio = double(miss_count[level]) / (read_count[level] + 1e-6);
 
-    // 计算奖励：假设 reward 是基于 compaction 前后读延迟的差值 --zhao  “还没完成”
-    // double reward = (read_latency_before - read_latency_after) - 0.1 * write_amp;
+  // 2) 差分
+  double delta_ratio = prev_ratio[level] - new_ratio;     // ∈  [−1,1]
+  double diff_waf    = waf - prev_waf[level];             // ≥ 0（假设 WAF 单调增）
 
+  // 3) 更新历史最大值
+  max_delta_ratio[level] = std::max(max_delta_ratio[level], delta_ratio);
+  max_diff_waf[level]    = std::max(max_diff_waf[level],    diff_waf);
 
-    double ratio = (double)miss_count[level] / (read_count[level] + 1e-6);
-    RTCState old_state{level, RTCState::Discretize(ratio)};
+  // 4) 动态归一化（除以历史最大值）
+  double norm_ratio = delta_ratio / max_delta_ratio[level];
+  double norm_dwaf  = diff_waf    / max_diff_waf[level];
 
-    // 重置统计数据，进入新一轮
-    read_count[level] = 0;
-    miss_count[level] = 0;
+  // 为了防止偶尔的数值跳出 [0,1]
+  norm_ratio = std::clamp(norm_ratio, 0.0, 1.0);
+  norm_dwaf  = std::clamp(norm_dwaf,  0.0, 1.0);
 
-    // 下一状态假设 miss ratio 清零（新开始）
-    RTCState next_state{level, RTCState::Discretize(0.0)};
-    agent.UpdateQ(old_state, action, reward, next_state);
+  // 5) 计算 reward
+  const double w_r = 1.0, w_w = 1.0;
+  double reward = w_r * norm_ratio - w_w * norm_dwaf;
+
+  // 6) Q-learning 更新
+  double old_ratio = prev_ratio[level];
+  RTCState old_state{level, RTCState::Discretize(old_ratio)};
+  RTCState next_state{level, RTCState::Discretize(new_ratio)};
+  agent.UpdateQ(old_state, action, reward, next_state);
+
+  // 7) 准备下一轮
+  read_count[level] = miss_count[level] = 0;
+  prev_ratio[level] = new_ratio;
+  prev_waf[level]   = waf;
+
+  // 8) 根据 reward 更新 threshold
+const double eta = 0.01;  // 阈值学习率，可根据收敛快慢调节
+// reward>0 时，让 threshold 降低（更容易触发）
+// reward<0 时，让 threshold 升高（更难触发）
+threshold[level] = threshold[level] - eta * reward;
+// 保证 threshold 始终在 [0,1] 之间
+threshold[level] = std::clamp(threshold[level], 0.0, 1.0);
+
+  // 9) 输出调试信息
+  printf("RTCController::UpdateAfterAction: level %d, action %d, "
+         "old_ratio %.3f, new_ratio %.3f, reward %.3f, "
+         "norm_ratio %.3f, norm_dwaf %.3f, threshold %.3f\n",
+         level, static_cast<int>(action), old_ratio, new_ratio,
+         reward, norm_ratio, norm_dwaf, threshold[level]);
+
 }
+
+
+
 
 }

@@ -654,7 +654,6 @@ InternalStats::InternalStats(int num_levels, SystemClock* clock,
     }
   }
 }
-
 void InternalStats::TEST_GetCacheEntryRoleStats(CacheEntryRoleStats* stats,
                                                 bool foreground) {
   CollectCacheEntryStats(foreground);

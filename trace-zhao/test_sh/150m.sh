@@ -9,12 +9,12 @@ bench_nums=(150000000)
 # bench_nums=(10000000 50000000 100000000 150000000)
 # bench_readnum="100000"
 max_background_jobs="2"
-unis=(0 1)
+unis=(1)
 use_rtc=(0 1)
-number_of_runs=3
+number_of_runs=1
 
-bench_db_base="/home/eros/forRTC/db_path"
-output_dir="/home/eros/forRTC/result/cpu/"
+bench_db_base="/mnt/new1/db_path"
+output_dir="/mnt/new1/cpu/"
 mkdir -p "$output_dir"
 
 current_time=$(date "+%Y%m%d-%H%M%S")
@@ -45,6 +45,7 @@ for num in "${bench_nums[@]}"; do
           --num=$num \
           --uni=$uni \
           --bloom_bits=10 \
+          --level0_file_num_compaction_trigger=5 \
           --compression_type=$bench_compression \
           --max_background_jobs=$max_background_jobs \
           --is_rtc=$rtc \
@@ -56,7 +57,7 @@ for num in "${bench_nums[@]}"; do
         start_time=$(date +%s)
 
         if [ -n "$1" ]; then
-            cmd="nohup stdbuf -oL $bench_file_path $const_params >> $log_file 2>&1 & echo \$!"
+            cmd="stdbuf -oL $bench_file_path $const_params >> $log_file 2>&1 & echo \$!"
             db_bench_pid=$(eval "$cmd")
         else
             cmd="stdbuf -oL $bench_file_path $const_params"
@@ -64,6 +65,16 @@ for num in "${bench_nums[@]}"; do
             $cmd >> "$log_file" 2>&1 &
             db_bench_pid=$!
         fi
+        # if [ -n "$1" ]; then
+        #     cmd="stdbuf -oL $bench_file_path $const_params 2>&1 | tee \"$log_file\" | grep \"rocksdb.\" > \"${log_file%.log}_summary.log\" & echo \$!"
+        #     db_bench_pid=$(eval "$cmd")
+        # else
+        #     cmd="stdbuf -oL $bench_file_path $const_params"
+        #     echo "$cmd" >> "$log_file"
+        #     $cmd 2>&1 | tee "$log_file" | grep "rocksdb." > "${log_file%.log}_summary.log" &
+        #     db_bench_pid=$!
+        # fi
+
 
         # Monitor CPU usage
         while ps -p $db_bench_pid > /dev/null; do

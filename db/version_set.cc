@@ -2447,7 +2447,7 @@ void Version::Get(const ReadOptions& read_options, const LookupKey& k,
     bool timer_enabled =
         GetPerfLevel() >= PerfLevel::kEnableTimeExceptForMutex &&
         get_perf_context()->per_level_perf_context_enabled;
-    StopWatchNano timer(clock_, timer_enabled /* auto_start */);
+    StopWatchNano timer(clock_, 1 /* auto_start */);
     //  search sstale --zhao
     *status = table_cache_->Get(
         read_options, *internal_comparator(), *f->file_metadata, ikey,
@@ -2469,8 +2469,8 @@ void Version::Get(const ReadOptions& read_options, const LookupKey& k,
       }
       return;
     }
-    //  --zhao
-    rtc::rtc_controller->RecordRead_latency(fp.GetHitFileLevel(), timer.ElapsedNanos() / 1000 /* us */);
+    //  --zhao 1000000
+    rtc::rtc_controller->RecordRead_latency(fp.GetHitFileLevel(), timer.ElapsedNanos() / 1000/ 1000/ 1000 /* in seconds */);
     // report the counters before returning
     if (get_context.State() != GetContext::kNotFound &&
         get_context.State() != GetContext::kMerge &&

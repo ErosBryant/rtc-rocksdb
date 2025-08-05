@@ -182,6 +182,8 @@ class DBImpl : public DB {
 
   virtual ~DBImpl();
 
+  double GetWriteAmpForLevel(int level);
+
   // ---- Implementations of the DB interface ----
 
   using DB::Resume;

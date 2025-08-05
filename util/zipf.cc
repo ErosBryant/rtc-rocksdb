@@ -25,7 +25,7 @@ long lastVal; //initialized in setLastValue
 void init_zipf_generator(long min, long max){
 	items = max-min+1;
 	base = min;
-	zipfianconstant = 0.99;
+	zipfianconstant = 0.8;
 	theta = zipfianconstant;
 	zeta2theta = zeta(0, 2, 0);
 	alpha = 1.0/(1.0-theta);

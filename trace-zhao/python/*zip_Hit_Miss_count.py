@@ -7,8 +7,13 @@ levels = np.arange(4)
 plt.rcParams["font.family"] = "serif"
 
 # 두 번째 데이터셋 (LevelDB)
-baseline_negative2 = np.array([129060895, 34759082, 59509385,0])
-baseline_positive2 = np.array([48924242 , 10510183, 13011478, 77655097])
+# baseline_negative2 = np.array([154907772,  4588646, 32740810,        0])
+# baseline_positive2 = np.array([ 18273955,   493739, 37470195, 37103474])
+
+baseline_negative2 = np.array([27360494,  5156738, 2549377,        0])
+
+baseline_positive2 = np.array([ 1889617,   3088084, 32773040, 112157448])
+
 
 # 119591064, 18087201, 18396681, 10350501, 0
 # 38739 , 167197, 398464, 13974456,25343614
@@ -18,7 +23,7 @@ baseline_positive2 = np.array([48924242 , 10510183, 13011478, 77655097])
 # 39922470
 plt.figure(figsize=(6,6))
 # 아래의 막대: Miss
-plt.bar(levels, baseline_positive2, width=0.5, 
+plt.bar(levels, baseline_negative2, width=0.5, 
         label='Hit', color='#fdc500', edgecolor='black')
 
 plt.bar(levels, baseline_negative2, width=0.5,bottom=baseline_positive2,  label='Miss', edgecolor='black', color='#3f8efc')
@@ -59,13 +64,13 @@ plt.grid(axis='y', linestyle='--', color='gray')
 
 # ■ 여기부터 scilimits=(8,8)로 지수부를 8로 강제  
 # ① useMathText=False 로 설정
-formatter = mticker.ScalarFormatter(useMathText=False)
+# formatter = mticker.ScalarFormatter(useMathText=False)
 # ② 지수부를 8로 고정
-formatter.set_powerlimits((8,8))
+# formatter.set_powerlimits((8,8))
 
-ax.yaxis.set_major_formatter(formatter)
+# ax.yaxis.set_major_formatter(formatter)
 # (필요하다면)
-ax.yaxis.offsetText.set_fontsize(22)
+# ax.yaxis.offsetText.set_fontsize(22)
 
 plt.tight_layout()
 plt.show()
