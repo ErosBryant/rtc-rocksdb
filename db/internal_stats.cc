@@ -2122,10 +2122,10 @@ void InternalStats::DumpCFFileHistogram(std::string* value) {
       << "] **\n";
 
   for (int level = 0; level < number_levels_; level++) {
-    // if (!file_read_latency_[level].Empty()) {
+    if (!file_read_latency_[level].Empty()) {
       oss << "** Level " << level << " read latency histogram (micros):\n"
           << file_read_latency_[level].ToString() << '\n';
-    // }
+    }
   }
 
 

@@ -1,29 +1,27 @@
-
 #!/bin/sh
 
 bench_value="1000"
 bench_compression="snappy"  # "snappy,none"
 bench_key="24"
-bench_benchmarks="fillrandomzip,stats,readrandomzip,stats"
+bench_benchmarks="fillrandomzip,flush,readrandomzip,stats"
 bench_nums=(150000000)
-# bench_nums=(10000000 50000000 100000000 150000000)
-# bench_readnum="100000"
 max_background_jobs="2"
-unis=(1)
-use_rtc=(0 1)
+unis=(1 0)
+use_rtc=(1 0)
 number_of_runs=1
 
-bench_db_base="/mnt/new1/db_path"
-output_dir="/mnt/new1/cpu/"
+current_time=$(date +"%d-%H-%M")
+bench_db_base="/mnt/RTC"
+output_dir="/home/eros/forRTC/result/cpu/"
+log_file_dir="/home/eros/forRTC/result/150M-${current_time}/"
+mkdir -p "$log_file_dir"
 mkdir -p "$output_dir"
 
-current_time=$(date "+%Y%m%d-%H%M%S")
-cpu_mem_log_file="${output_dir}cpu_mem_usage_${current_time}.log"
-echo "Time(s),use_rtc,CPU_Usage(%),Memory_Usage(KB)" > "$cpu_mem_log_file"
-
+# 총합/요약만 기록하는 파일 (실행 당 1줄)
+summary_log="${output_dir}150m_cpu_mem_totals_${current_time}.csv"
+echo "elapsed_seconds,use_rtc,uni,num,round,cpu_percent,user_seconds,sys_seconds,max_rss_kb" > "$summary_log"
 
 bench_file_path="/home/eros/forRTC/rocksdb/db_bench"
-
 if [ ! -f "${bench_file_path}" ]; then
   echo "Error: ${bench_file_path} not found!"
   exit 1
@@ -33,12 +31,9 @@ for num in "${bench_nums[@]}"; do
   for uni in "${unis[@]}"; do
     for rtc in "${use_rtc[@]}"; do
       for round in $(seq 1 $number_of_runs); do
+        log_file=${log_file_dir}out_${num}_uni${uni}_rtc${rtc}_round${round}.log
 
-        log_file="/home/eros/forRTC/result/out_${num}_uni${uni}_rtc${rtc}_round${round}.log"
-        db_dir="${bench_db_base}_${num}_uni${uni}_rtc${rtc}_round${round}"
-        mkdir -p "$db_dir"
-
-        const_params="--db=${db_dir} \
+        const_params=" \
           --key_size=$bench_key \
           --value_size=$bench_value \
           --benchmarks=$bench_benchmarks \
@@ -55,39 +50,31 @@ for num in "${bench_nums[@]}"; do
         echo "[INFO] Running round $round, uni=$uni, rtc=$rtc" | tee -a "$log_file"
 
         start_time=$(date +%s)
+        cmd="$bench_file_path $const_params"
+        echo "$cmd" >> "$log_file"
 
-        if [ -n "$1" ]; then
-            cmd="stdbuf -oL $bench_file_path $const_params >> $log_file 2>&1 & echo \$!"
-            db_bench_pid=$(eval "$cmd")
-        else
-            cmd="stdbuf -oL $bench_file_path $const_params"
-            echo "$cmd" >> "$log_file"
-            $cmd >> "$log_file" 2>&1 &
-            db_bench_pid=$!
-        fi
-        # if [ -n "$1" ]; then
-        #     cmd="stdbuf -oL $bench_file_path $const_params 2>&1 | tee \"$log_file\" | grep \"rocksdb.\" > \"${log_file%.log}_summary.log\" & echo \$!"
-        #     db_bench_pid=$(eval "$cmd")
-        # else
-        #     cmd="stdbuf -oL $bench_file_path $const_params"
-        #     echo "$cmd" >> "$log_file"
-        #     $cmd 2>&1 | tee "$log_file" | grep "rocksdb." > "${log_file%.log}_summary.log" &
-        #     db_bench_pid=$!
-        # fi
+        tmp_time="$(mktemp)"
+        # GNU time 로 총합 수치 수집 (-v 자세히, -o 파일저장)
+        /usr/bin/time -v -o "$tmp_time" sh -c "$cmd >> \"$log_file\" 2>&1"
+        end_time=$(date +%s)
+        elapsed=$(( end_time - start_time ))
 
+        # 필요한 필드 파싱
+        cpu_percent=$(awk -F': *' '/Percent of CPU this job got/ {gsub("%","",$2); print $2}' "$tmp_time")
+        user_sec=$(awk -F': *' '/User time \(seconds\)/ {print $2}' "$tmp_time")
+        sys_sec=$(awk -F': *' '/System time \(seconds\)/ {print $2}' "$tmp_time")
+        max_rss=$(awk -F': *' '/Maximum resident set size/ {print $2}' "$tmp_time")
 
-        # Monitor CPU usage
-        while ps -p $db_bench_pid > /dev/null; do
-            usage=$(ps -p $db_bench_pid -o %cpu,rss --no-headers)
-            cpu_usage=$(echo "$usage" | awk '{print $1}')
-            mem_usage=$(echo "$usage" | awk '{print $2}')
-            [ -z "$cpu_usage" ] && cpu_usage="N/A"
-            [ -z "$mem_usage" ] && mem_usage="N/A"
-            elapsed_time=$(( $(date +%s) - start_time ))
+        # 값이 비었을 때 대비
+        [ -z "$cpu_percent" ] && cpu_percent="0"
+        [ -z "$user_sec" ] && user_sec="0"
+        [ -z "$sys_sec" ] && sys_sec="0"
+        [ -z "$max_rss" ] && max_rss="0"
 
-            echo "$elapsed_time,$rtc,$cpu_usage,$mem_usage" >> "$cpu_mem_log_file"
-            sleep 1
-        done
+        # 한 줄 요약만 기록
+        echo "${elapsed},${rtc},${uni},${num},${round},${cpu_percent},${user_sec},${sys_sec},${max_rss}" >> "$summary_log"
+
+        rm -f "$tmp_time"
       done
     done
   done

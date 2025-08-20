@@ -301,10 +301,11 @@ DBImpl::DBImpl(const DBOptions& options, const std::string& dbname,
   }
   // rtc::RTCController rtc_controller(7); 
    rtc::rtc_controller = std::make_unique<rtc::RTCController>(7);
-  //  for (int i = 0; i < 7; ++i) {
-  //   // Initialize read_count and miss_count for each level
-  //   rtc::rtc_controller->reset(i);
-  //   }
+  //  rtc::rtc_controller->reset();
+   for (int i = 0; i < 7; ++i) {
+    // Initialize read_count and miss_count for each level
+    rtc::rtc_controller->reset(i);
+    }
   rtc::lookups_counts.resize(2); 
 }
 
@@ -729,6 +730,12 @@ Status DBImpl::CloseHelper() {
 Status DBImpl::CloseImpl() { return CloseHelper(); }
 
 DBImpl::~DBImpl() {
+
+  printf("rtc nocompaction %ld\n", rtc::triggered_count[0]);
+  printf("rtc level-k compaction %ld\n", rtc::triggered_count[1]);
+  printf("rtc aggressive compaction %ld\n", rtc::triggered_count[2]);
+
+
   ThreadStatus::OperationType cur_op_type =
       ThreadStatusUtil::GetThreadOperation();
   ThreadStatusUtil::SetThreadOperation(ThreadStatus::OperationType::OP_UNKNOWN);
@@ -1960,6 +1967,8 @@ static void CleanupGetMergeOperandsState(void* arg1, void* /*arg2*/) {
   delete state;
 }
 
+
+
 }  // namespace
 
 InternalIterator* DBImpl::NewInternalIterator(
@@ -2218,6 +2227,36 @@ double DBImpl::GetWriteAmpForLevel(int level) {
 }
 
 
+// // Helper struct and function for RTC Compaction
+struct RTCCompactionJob {
+  DBImpl* db;
+  int level; // For LevelKCompaction
+  int aggressive_target_level; // For AggressiveCompaction
+  bool aggressive;
+};
+
+void DoRTCCompaction(void* arg) {
+  std::unique_ptr<RTCCompactionJob> job(static_cast<RTCCompactionJob*>(arg));
+
+  CompactRangeOptions compact_options;
+  compact_options.change_level = true;
+  compact_options.exclusive_manual_compaction = false;
+  compact_options.bottommost_level_compaction =
+      BottommostLevelCompaction::kForceOptimized;
+
+  if (job->aggressive) {
+    compact_options.target_level = 5; // As in the original code
+    job->db->CompactRange(compact_options, nullptr, nullptr);
+    rtc::compaction_in_progress[job->aggressive_target_level] = false;
+  } else {
+    compact_options.target_level = job->level + 1;
+    job->db->CompactRange(compact_options, nullptr, nullptr);
+    rtc::compaction_in_progress[job->level] = false;
+  }
+}
+
+
+
 Status DBImpl::GetImpl(const ReadOptions& read_options, const Slice& key,
                        GetImplOptions& get_impl_options) {
   assert(get_impl_options.value != nullptr ||
@@ -2226,8 +2265,6 @@ Status DBImpl::GetImpl(const ReadOptions& read_options, const Slice& key,
 
   assert(get_impl_options.column_family);
 
-  // -zhao rtc
-  rtc::internal_lookup++;
 
   if (read_options.timestamp) {
     const Status s = FailIfTsMismatchCf(get_impl_options.column_family,
@@ -2243,97 +2280,103 @@ Status DBImpl::GetImpl(const ReadOptions& read_options, const Slice& key,
   }
 
 
-
-
-  // -zhao all compact
-  // if (rtc::is_rtc){
-  //         std::thread allCompactionThread([this]() {
-  //         printf("test\n");
-  //         CompactRangeOptions compact_options;
-  //         compact_options.change_level = true;
-  //         compact_options.target_level = 5;
-  //         compact_options.exclusive_manual_compaction = false;
-  //         compact_options.bottommost_level_compaction =
-  //         BottommostLevelCompaction::kForceOptimized;
-  //         CompactRange(compact_options, nullptr, nullptr);
-  //         });
-  //         allCompactionThread.detach();
-  // rtc::is_rtc=false;
-  // }
-  // -------------------------
-
   // -zhao per level rtc 
+    rtc::internal_lookup++;
+  // rtc::internal_lookup.fetch_add(1, std::memory_order_relaxed);
+  // size_t current_lookups = rtc::internal_lookup.load(std::memory_order_relaxed);
 
+// if (current_lookups >= rtc::rtc) {// 尝试从当前值交换为0，确保只有一个线程能成功
+  // if (rtc::internal_lookup.compare_exchange_strong(current_lookups, 0, std::memory_order_relaxed)) {
+  
+   
+  if (rtc::internal_lookup >= rtc::rtc) {
 
-  if (rtc::is_rtc){  
-    // printf("DBImpl::GetImpl: internal_lookup %ld, rtc %ld\n",
-    //        rtc::internal_lookup, rtc::rtc);
-    if (rtc::internal_lookup>=rtc::rtc) {
-      // printf("DBImpl::GetImpl: internal_lookup %ld, rtc %ld\n",
-      //        rtc::internal_lookup, rtc::rtc);
-      for (int level=0;level<=5;level++){
-
+    for (int level = 0; level <= 4; level++) {
       double amp = GetWriteAmpForLevel(level);
- 
 
+      if (rtc::is_rtc) {
         if (rtc::rtc_controller->read_count[level] < rtc::rtc) continue;
+
         auto action = rtc::rtc_controller->MaybeTrigger(level, amp);
-        // printf("DBImpl::GetImpl: level %d, action %d, read_count %ld, miss_count %ld, Triggered_Count %ld\n",
-        //        level, static_cast<int>(action),
-        //        rtc::rtc_controller->read_count[level],
-        //        rtc::rtc_controller->miss_count[level],
-        //        rtc::rtc_controller->Triggered_Count);
+
         switch (action) {
-          case rtc::RTCAction::NoCompaction:{
-              break;
+          case rtc::RTCAction::NoCompaction: {
+             rtc::triggered_count[0]++; 
+            break;
           }
-          case rtc::RTCAction::LevelKCompaction:{
-              // TriggerCompaction(level);
-              // std::thread allCompactionThread([this]() {
+          case rtc::RTCAction::LevelKCompaction: {
+            if (!rtc::compaction_in_progress[level].exchange(true)) {
               std::thread allCompactionThread([this, level]() {
                 CompactRangeOptions compact_options;
                 compact_options.change_level = true;
-                // compact_options.target_level = level;
+                compact_options.target_level = level+1;
                 compact_options.exclusive_manual_compaction = false;
                 compact_options.bottommost_level_compaction =
-                BottommostLevelCompaction::kForceOptimized;
+                    BottommostLevelCompaction::kForceOptimized;
+
                 CompactRange(compact_options, nullptr, nullptr);
+
+                rtc::compaction_in_progress[level] = false;  // 완료 후 reset
+                rtc::triggered_count[1]++; 
               });
               allCompactionThread.detach();
-              // rtc::rtc_controller->reset(level);
-              break;
+
             }
-          case rtc::RTCAction::AggressiveCompaction:{
-              // TriggerAggressiveCompaction(level);
-              // printf("test\n");
-              std::thread allCompactionThread([this]() {
-                // printf("test111\n");
+            break;
+          }
+          case rtc::RTCAction::AggressiveCompaction: {
+            constexpr int target_level = 5;
+            if (!rtc::compaction_in_progress[target_level].exchange(true)) {
+              std::thread allCompactionThread([this, target_level]() {
                 CompactRangeOptions compact_options;
                 compact_options.change_level = true;
-                compact_options.target_level = 3;
+                compact_options.target_level = 5;
                 compact_options.exclusive_manual_compaction = false;
                 compact_options.bottommost_level_compaction =
                 BottommostLevelCompaction::kForceOptimized;
+
                 CompactRange(compact_options, nullptr, nullptr);
+
+                rtc::compaction_in_progress[target_level] = false;  // 완료 후 reset
+                rtc::triggered_count[2]++; 
               });
               allCompactionThread.detach();
-              break;
+            }
+            break;
           }
+          // case rtc::RTCAction::LevelKCompaction: {
+          //      if (!rtc::compaction_in_progress[level].exchange(true)) {
+          //         auto* job = new RTCCompactionJob{this, level, 0,false};
+          //         env_->Schedule(&DoRTCCompaction, job,Env::Priority::HIGH);
+          //     }
+          //     break;
+          //    }
+             
+          // case rtc::RTCAction::AggressiveCompaction: {
+          //   constexpr int target_level = 5;
+          //      if (!rtc::compaction_in_progress[target_level].exchange(true)) {
+          //         auto* job = new RTCCompactionJob{this, target_level, 0,false};
+          //         env_->Schedule(&DoRTCCompaction, job,Env::Priority::HIGH);
+          //     }
+          //     break;
+          //    }
         }
+        double after_amp = GetWriteAmpForLevel(level);
+        rtc::rtc_controller->UpdateAfterAction(level, action, after_amp);
 
-        // double reward = (double)rtc::rtc_controller->miss_count[level] / (rtc::rtc_controller->read_count[level] + 1e-6);
-
-
-          
-      rtc::rtc_controller->UpdateAfterAction(level, action, amp);
       }
-      rtc::internal_lookup = 0;
-    }
-      
-   }
+
+  }
+  rtc::internal_lookup = 0;
+// }
+}
 
 
 
+
+
+// });
+// read_triggered_compaction.detach();
 
   // Clear the timestamps for returning results so that we can distinguish
   // between tombstone or key that has never been written

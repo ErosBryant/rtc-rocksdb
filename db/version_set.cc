@@ -2444,9 +2444,10 @@ void Version::Get(const ReadOptions& read_options, const LookupKey& k,
       sample_file_read_inc(f->file_metadata);
     }
 
-    bool timer_enabled =
-        GetPerfLevel() >= PerfLevel::kEnableTimeExceptForMutex &&
-        get_perf_context()->per_level_perf_context_enabled;
+    // bool timer_enabled =
+    //     GetPerfLevel() >= PerfLevel::kEnableTimeExceptForMutex &&
+    //     get_perf_context()->per_level_perf_context_enabled;
+
     StopWatchNano timer(clock_, 1 /* auto_start */);
     //  search sstale --zhao
     *status = table_cache_->Get(
@@ -2459,7 +2460,7 @@ void Version::Get(const ReadOptions& read_options, const LookupKey& k,
         fp.GetHitFileLevel(), max_file_size_for_l0_meta_pin_);
         
     // TODO: examine the behavior for corrupted key
-    if (timer_enabled) {
+    if (1) {
       PERF_COUNTER_BY_LEVEL_ADD(get_from_table_nanos, timer.ElapsedNanos(),
                                 fp.GetHitFileLevel());
     }
@@ -2469,8 +2470,8 @@ void Version::Get(const ReadOptions& read_options, const LookupKey& k,
       }
       return;
     }
-    //  --zhao 1000000
-    rtc::rtc_controller->RecordRead_latency(fp.GetHitFileLevel(), timer.ElapsedNanos() / 1000/ 1000/ 1000 /* in seconds */);
+    //  --zhao 
+    rtc::rtc_controller->RecordRead_latency(fp.GetHitFileLevel(), timer.ElapsedNanos() /* µs (마이크로초) */);
     // report the counters before returning
     if (get_context.State() != GetContext::kNotFound &&
         get_context.State() != GetContext::kMerge &&

@@ -22,6 +22,20 @@ double zeta2theta; //initialized in init_zipf_generator function
 long countforzeta; //initialized in init_zipf_generator function
 long lastVal; //initialized in setLastValue
 
+// void init_zipf_generator(long min, long max){
+// 	items = max-min+1;
+// 	base = min;
+// 	zipfianconstant = 0.9;
+// 	theta = zipfianconstant;
+// 	zeta2theta = zeta(0, 2, 0);
+// 	alpha = 1.0/(1.0-theta);
+// 	zetan = zetastatic(0, max-min+1, 0);
+// 	countforzeta = items;
+// 	eta=(1 - pow(2.0/items,1-theta) )/(1-zeta2theta/zetan);
+
+// 	nextValue();
+// }
+
 void init_zipf_generator(long min, long max){
 	items = max-min+1;
 	base = min;
@@ -35,6 +49,7 @@ void init_zipf_generator(long min, long max){
 
 	nextValue();
 }
+
 
 void skewed_generator(long min, long max, double theta_val){
     items = max-min+1;
@@ -67,29 +82,32 @@ double zetastatic(long st, long n, double initialsum){
 }
 
 long nextLong(long itemcount){
-	//from "Quickly Generating Billion-Record Synthetic Databases", Jim Gray et al, SIGMOD 1994
-	if (itemcount!=countforzeta){
-		if (itemcount>countforzeta){
-			printf("WARNING: Incrementally recomputing Zipfian distribtion. (itemcount= %ld; countforzeta= %ld)", itemcount, countforzeta);
-			//we have added more items. can compute zetan incrementally, which is cheaper
-			zetan = zeta(countforzeta,itemcount,zetan);
-			eta = ( 1 - pow(2.0/items,1-theta) ) / (1-zeta2theta/zetan);
-		} 
-	}
-	
-	double u = (double)rand() / ((double)RAND_MAX);
-	double uz=u*zetan;
-	if (uz < 1.0){
-		return base;
-	}
-	
-	if (uz<1.0 + pow(0.5,theta)) {
-		return base + 1;
-	}
-	long ret = base + (long)((itemcount) * pow(eta*u - eta + 1, alpha));
-	setLastValue(ret);
-	return ret;
+    // from "Quickly Generating Billion-Record Synthetic Databases", Jim Gray et al, SIGMOD 1994
+    if (itemcount != countforzeta) {
+        if (itemcount > countforzeta) {
+            // incrementally recompute zeta if more items have been added
+            zetan = zeta(countforzeta, itemcount, zetan);
+            eta = (1 - pow(2.0/items, 1 - theta)) / (1 - zeta2theta/zetan);
+        }
+        // always update countforzeta to keep in sync
+        countforzeta = itemcount;
+    }
+
+    double u = (double)rand() / ((double)RAND_MAX);
+    double uz = u * zetan;
+    if (uz < 1.0) {
+        return base;
+    }
+
+    if (uz < 1.0 + pow(0.5, theta)) {
+        return base + 1;
+    }
+
+    long ret = base + (long)((itemcount) * pow(eta*u - eta + 1, alpha));
+    setLastValue(ret);
+    return ret;
 }
+
 
 long nextValue() {
 	return nextLong(items);
