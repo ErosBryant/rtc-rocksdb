@@ -1,18 +1,21 @@
-#!/bin/sh
+#!/usr/bin/env bash
 set -e
 
 bench_value="1000"
 bench_compression="snappy"
 bench_key="24"
 bench_benchmarks="fillrandomgen,flush,readrandomgen,waitforcompaction,fillrandomgen,flush,readrandomgen,waitforcompaction,fillrandomgen,flush,readrandomgen,waitforcompaction,fillrandomgen,flush,readrandomgen,waitforcompaction,fillrandomgen,flush,readrandomgen,waitforcompaction,fillrandomgen,flush,readrandomgen,waitforcompaction,fillrandomgen,flush,readrandomgen,waitforcompaction,fillrandomgen,flush,readrandomgen,waitforcompaction,fillrandomgen,flush,readrandomgen,stats"
-bench_nums=(15000000 10000000)
+bench_nums=(10000000 15000000)
 max_background_jobs="2"
 unis=(0 1)
 use_rtc=(1 0)
 number_of_runs=2
 
+# 모니터링 헬퍼 로드 (monitor.sh가 같은 폴더에 있다고 가정)
+source "$(dirname "$0")/monitor.sh"
+
 current_time=$(date +"%d-%H-%M")
-bench_db_base="/mnt/RTC"
+bench_db_base="/mnt/new1/"
 output_dir="/home/eros/forRTC/result/cpu/"
 log_file_dir="/home/eros/forRTC/result/15Mx10-${current_time}/"
 mkdir -p "$log_file_dir" "$output_dir"
@@ -31,13 +34,12 @@ for num in "${bench_nums[@]}"; do
     for rtc in "${use_rtc[@]}"; do
       for round in $(seq 1 $number_of_runs); do
         log_file="${log_file_dir}out_${num}_uni${uni}_rtc${rtc}_round${round}.log"
-        db_dir="${bench_db_base}_${num}_uni${uni}_rtc${rtc}_round${round}_${current_time}"
+        db_dir="${bench_db_base}${num}_uni${uni}_rtc${rtc}_round${round}_${current_time}"
 
-        # 깨끗한 DB 디렉터리 보장
-        rm -rf "$db_dir"
-        mkdir -p "$db_dir"
+        rm -rf "$db_dir" && mkdir -p "$db_dir"
 
-        const_params="--db=${db_dir} \
+        # --db=${db_dir}/
+        const_params="--db=${db_dir}\
           --key_size=$bench_key \
           --value_size=$bench_value \
           --benchmarks=$bench_benchmarks \
@@ -58,12 +60,27 @@ for num in "${bench_nums[@]}"; do
         echo "$cmd" >> "$log_file"
 
         tmp_time="$(mktemp)"
-        # time -v 로 자원 총합 수집
-        /usr/bin/time -v -o "$tmp_time" sh -c "$cmd >> \"$log_file\" 2>&1"
+
+        # 모니터링 로그 파일 prefix
+        monitor_prefix="${log_file_dir}monitor_${num}_uni${uni}_rtc${rtc}_round${round}"
+
+        # db_bench 실행 + PID 확보
+        bash -c "$cmd" >> "$log_file" 2>&1 &
+        bench_pid=$!
+
+        # 모니터링 시작
+        start_monitors "$bench_pid" "$monitor_prefix" "$db_dir" "sdb"
+
+        # 벤치마크 끝날 때까지 기다리면서 time -v로 리소스 기록
+       /usr/bin/time -v -o "$tmp_time" tail --pid="$bench_pid" -f /dev/null
+
+
+        # 모니터링 중단
+        stop_monitors "$monitor_prefix"
+
         end_time=$(date +%s)
         elapsed=$(( end_time - start_time ))
 
-        # 필요한 필드 파싱
         cpu_percent=$(awk -F': *' '/Percent of CPU this job got/ {gsub("%","",$2); print $2}' "$tmp_time")
         user_sec=$(awk -F': *' '/User time \(seconds\)/ {print $2}' "$tmp_time")
         sys_sec=$(awk -F': *' '/System time \(seconds\)/ {print $2}' "$tmp_time")

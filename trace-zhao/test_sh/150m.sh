@@ -7,7 +7,7 @@ bench_benchmarks="fillrandomzip,flush,readrandomzip,stats"
 bench_nums=(150000000)
 max_background_jobs="2"
 unis=(1 0)
-use_rtc=(1 0)
+use_rtc=(0)
 number_of_runs=1
 
 current_time=$(date +"%d-%H-%M")
